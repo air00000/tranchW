@@ -1,0 +1,31 @@
+ruleset_path: ./rules/sol_meme_runner_live_mvp_dex_jup_gmgn.yaml
+
+provider:
+  kind: http_metrics
+  poll_url: http://127.0.0.1:8787/snapshots
+  poll_interval_sec: 5
+  timeout_sec: 10
+  headers:
+    X-API-Key: ${METRICS_API_KEY}
+
+telegram:
+  enabled: true
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+  chat_id: ${TELEGRAM_CHAT_ID}
+  parse_mode: HTML
+  disable_notification: true
+
+webhook:
+  enabled: false
+  url: ${ALERT_WEBHOOK_URL}
+  timeout_sec: 10
+  headers:
+    Authorization: Bearer ${ALERT_WEBHOOK_TOKEN}
+
+storage:
+  sqlite_path: ./runtime/state.live_http.db
+
+runtime:
+  dispatch_rejects: false
+  dispatch_candidates: true
+  event_log_jsonl: ./runtime/events.live_http.jsonl

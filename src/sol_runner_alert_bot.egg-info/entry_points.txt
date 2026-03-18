@@ -1,0 +1,3 @@
+[console_scripts]
+sol-runner-aggregator = sol_runner_bot.aggregator:main
+sol-runner-bot = sol_runner_bot.app:main

@@ -1,0 +1,39 @@
+listen:
+  host: 127.0.0.1
+  port: 8787
+
+auth:
+  api_key: ${METRICS_API_KEY}
+
+runtime:
+  readiness_max_staleness_sec: 90
+  error_backoff_sec: 5
+  max_returned_snapshots: 100
+
+provider:
+  kind: dex_jup_gmgn_mvp
+  poll_interval_sec: 15
+  timeout_sec: 10
+  chain_id: solana
+  discovery_sources:
+    - watchlist
+    - jupiter_recent
+    - jupiter_toporganicscore_5m
+    - jupiter_toptrending_5m
+    - dex_boosts_top
+  watchlist_tokens: []
+  max_tokens: 25
+  min_liq_usd: 10000
+  min_fdv_usd: 150000
+  jupiter_api_base: https://api.jup.ag
+  jupiter_api_key: ${JUPITER_API_KEY}
+  dexscreener_api_base: https://api.dexscreener.com
+  buy_probe_usd: 5000
+  sell_probe_usd: 5000
+  sell_guard_probe_usd: 1000
+  # Optional bridge you control. The provider expects your own normalized HTTP feed,
+  # not the raw GMGN trading API directly.
+  gmgn_enrichment_url: ${GMGN_ENRICHMENT_URL}
+  gmgn_headers:
+    Authorization: Bearer ${GMGN_ENRICHMENT_TOKEN}
+  request_concurrency: 8

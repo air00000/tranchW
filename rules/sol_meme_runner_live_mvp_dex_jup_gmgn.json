@@ -1,0 +1,647 @@
+{
+  "ruleset_version": "sol_meme_runner_live_mvp_dex_jup_gmgn_v1",
+  "chain": "solana",
+  "mode": "balanced_early_runner_no_pure_sniping",
+  "description": "Live MVP profile for DexScreener + Jupiter + optional GMGN enrichment. Keeps the original runner logic where available, but removes strict hard-veto metrics that require a private GMGN/cluster feed. Several flow and smart-money fields are satisfied by documented Jupiter Tokens V2 proxies and Jupiter Quote sellability checks.",
+  "meta": {
+    "status": "mvp_ready_spec",
+    "created_on": "2026-03-18",
+    "breaking_changes_vs_v1": [
+      "token_age_minutes_min raised from 2 to 5 to make 5m/10m/15m windows valid",
+      "ambiguous bundle_ratio_first_150_trades replaced by same_slot_cluster_ratio_first_150_trades_pct",
+      "explicit missing-data policy added",
+      "explicit pool selection and pool pinning added",
+      "explicit score normalization added",
+      "sybil rule formalized using buy-size CV instead of '~same median buy' wording",
+      "coordinated sell reject rule formalized with volume thresholds"
+    ]
+  },
+  "metric_aliases": {
+    "token_age_min_min": "token_age_minutes_min",
+    "token_age_min_max": "token_age_minutes_max",
+    "vol_15m_usd": "volume_equiv_15m_usd",
+    "smart_buys_10m": "smart_buys_observed_window",
+    "buy_sell_vol_5m": "buy_to_sell_volume_5m",
+    "bundle_ratio_first_150_trades": "same_slot_cluster_ratio_first_150_trades_pct"
+  },
+  "operational_policy": {
+    "token_age_minutes_min": 5,
+    "token_age_minutes_max": 240,
+    "fdv_usd_min": 150000,
+    "fdv_usd_max": 20000000,
+    "candidate_watch_ttl_min": 30,
+    "cooldown_min": 20,
+    "rearm_new_high_over_last_alert_min_pct": 12,
+    "data_staleness_max_sec": 10,
+    "require_all_hard_veto_metrics_present": false,
+    "score_metrics_completeness_min": 0.85,
+    "cluster_hops_max_for_mvp": 1,
+    "base_candle": "1m",
+    "continuation_uses_close_only": true,
+    "pin_primary_pool_for_candidate_lifecycle": true
+  },
+  "pool_selection": {
+    "primary_pool_preference_order": [
+      "highest active liquidity_usd pool on supported Solana DEX",
+      "prefer SOL/USDC/USDT quote pools when liquidity is similar",
+      "exclude clearly stale or inactive pools",
+      "pin selected pool from candidate creation until alert/reject unless pool becomes invalid"
+    ],
+    "fdv_price_source": "selected_primary_pool_mid_price",
+    "liq_usd_source": "selected_primary_pool_liquidity_usd",
+    "notes": [
+      "Do not aggregate incompatible pools into one synthetic price series for candidate logic.",
+      "Hard-veto and score calculations must reference the same selected primary pool unless metric is explicitly token-level."
+    ]
+  },
+  "window_policy": {
+    "ret_1m_window": "1m",
+    "ret_5m_window": "5m",
+    "flow_window": "5m",
+    "smart_window_effective": "min(token_age_minutes, 10)",
+    "volume_window_effective": "min(token_age_minutes, 15)",
+    "volume_equiv_15m_formula": "volume_usd_effective * 15 / effective_window_minutes",
+    "local_high_ref_definition": "highest 1m close from candidate_ts until pullback starts",
+    "pullback_pct_formula": "(local_high_ref - current_1m_close) / local_high_ref * 100",
+    "rebreak_condition_formula": "current_1m_close > local_high_ref * 1.01"
+  },
+  "metric_definitions": {
+    "liq_to_fdv": "liq_usd / fdv_usd",
+    "must_be_above_vwap_5m": "current price > rolling 5m VWAP on selected primary pool",
+    "trades_per_min_5m": "count(all swaps in last 5m on selected primary pool) / 5",
+    "buyers_to_sellers_5m": "unique buyer wallets in last 5m / max(unique seller wallets in last 5m, 1)",
+    "buy_to_sell_volume_5m": "buy usd volume in last 5m / max(sell usd volume in last 5m, 1)",
+    "median_buy_usd": "median usd size of buy trades in last 5m",
+    "pullback_from_high_5m_pct": "(rolling_5m_high_close - current_close) / rolling_5m_high_close * 100",
+    "blowoff_1m_pct": "(1m high - 1m open) / 1m open * 100",
+    "smart_buys_observed_window": "count of buys from wallets marked smart in effective smart window",
+    "smart_cluster_concentration": "share of smart-buy usd volume contributed by the single largest same-funder cluster in the effective smart window",
+    "copy_trade_score": "higher means more likely crowd-copy / reflexive follow behavior; exact model external to this ruleset",
+    "depth_2pct_usd": "max executable usd notional before quoted price impact reaches 2%, using the same quote engine as sell simulation",
+    "price_impact_buy_5000_pct": "quoted price impact for a 5000 USD buy",
+    "price_impact_sell_5000_pct": "quoted price impact for a 5000 USD sell",
+    "sell_success_rate_sim_pct": "success rate of repeated 1000 USD sell quote+simulation attempts over the last 20 seconds",
+    "effective_sell_slippage_1000_pct": "median realized-or-simulated slippage across successful 1000 USD sell attempts over the last 20 seconds",
+    "same_slot_cluster_ratio_first_150_trades_pct": "share of the first 150 trades attributable to the same 1-hop funder cluster occurring in a slot/time-burst pattern; replaces ambiguous 'bundle ratio' wording",
+    "top10_ex_lp_pct": "current supply share held by top 10 holders excluding LP, burn, locker/escrow allowlist, treasury allowlist and known CEX addresses",
+    "insider_cluster_supply_pct": "combined current supply share of insider-linked clusters",
+    "same_funder_cluster_top20_pct": "combined current supply share in top20 holders attributable to a single 1-hop funder cluster"
+  },
+  "missing_data_policy": {
+    "hard_veto_missing": "ALLOW_IF_NOT_FAILED",
+    "score_metrics_completeness_below_threshold": "REJECT",
+    "missing_hard_veto_reason_code": "HARD_VETO_DATA_MISSING",
+    "missing_score_reason_code": "SCORE_METRICS_INCOMPLETE"
+  },
+  "hard_veto": {
+    "logic": "if any fail => event=reject",
+    "rules": [
+      {
+        "code": "MINT_AUTHORITY_NOT_REVOKED",
+        "metric": "mint_authority_revoked",
+        "op": "==",
+        "value": true
+      },
+      {
+        "code": "FREEZE_AUTHORITY_NOT_REVOKED",
+        "metric": "freeze_authority_revoked",
+        "op": "==",
+        "value": true
+      },
+      {
+        "code": "CREATOR_SHARE_TOO_HIGH",
+        "metric": "creator_token_share_pct",
+        "op": "<=",
+        "value": 1.5
+      },
+      {
+        "code": "TOP10_CONCENTRATION_TOO_HIGH",
+        "metric": "top10_ex_lp_pct",
+        "op": "<=",
+        "value": 18
+      },
+      {
+        "code": "SELL_SIM_SUCCESS_TOO_LOW",
+        "metric": "sell_success_rate_sim_pct",
+        "op": ">=",
+        "value": 95
+      },
+      {
+        "code": "SELL_SLIPPAGE_TOO_HIGH",
+        "metric": "effective_sell_slippage_1000_pct",
+        "op": "<=",
+        "value": 12
+      },
+      {
+        "code": "LIQUIDITY_TOO_LOW",
+        "metric": "liq_usd",
+        "op": ">=",
+        "value": 30000
+      },
+      {
+        "code": "LIQ_TO_FDV_TOO_LOW",
+        "metric": "liq_to_fdv",
+        "op": ">=",
+        "value": 0.08
+      }
+    ]
+  },
+  "candidate_prefilters": {
+    "logic": "all must pass before score threshold can emit runner_candidate",
+    "rules": [
+      {
+        "metric": "token_age_minutes",
+        "op": ">=",
+        "value": 5
+      },
+      {
+        "metric": "token_age_minutes",
+        "op": "<=",
+        "value": 240
+      },
+      {
+        "metric": "fdv_usd",
+        "op": ">=",
+        "value": 150000
+      },
+      {
+        "metric": "fdv_usd",
+        "op": "<=",
+        "value": 20000000
+      },
+      {
+        "metric": "ret_1m_pct",
+        "op": ">=",
+        "value": 4
+      },
+      {
+        "metric": "ret_5m_pct",
+        "op": ">=",
+        "value": 15
+      },
+      {
+        "metric": "ret_5m_pct",
+        "op": "<=",
+        "value": 90
+      },
+      {
+        "metric": "pullback_from_high_5m_pct",
+        "op": "<=",
+        "value": 28
+      },
+      {
+        "metric": "must_be_above_vwap_5m",
+        "op": "==",
+        "value": true
+      },
+      {
+        "metric": "volume_equiv_15m_usd",
+        "op": ">=",
+        "value": 80000
+      },
+      {
+        "metric": "trades_per_min_5m",
+        "op": ">=",
+        "value": 18
+      },
+      {
+        "metric": "unique_buyers_5m",
+        "op": ">=",
+        "value": 40
+      },
+      {
+        "metric": "buyers_to_sellers_5m",
+        "op": ">=",
+        "value": 1.6
+      },
+      {
+        "metric": "buy_to_sell_volume_5m",
+        "op": ">=",
+        "value": 1.9
+      },
+      {
+        "metric": "median_buy_usd",
+        "op": ">=",
+        "value": 30
+      },
+      {
+        "metric": "median_buy_usd",
+        "op": "<=",
+        "value": 500
+      },
+      {
+        "metric": "smart_buys_observed_window",
+        "op": ">=",
+        "value": 3
+      },
+      {
+        "metric": "smart_quality_avg",
+        "op": ">=",
+        "value": 0.65
+      },
+      {
+        "metric": "smart_cluster_concentration",
+        "op": "<=",
+        "value": 0.4
+      },
+      {
+        "metric": "copy_trade_score",
+        "op": "<=",
+        "value": 0.35
+      },
+      {
+        "metric": "blowoff_1m_pct",
+        "op": "<=",
+        "value": 35
+      }
+    ]
+  },
+  "score_model": {
+    "score_range": [
+      0.0,
+      1.0
+    ],
+    "block_weights": {
+      "Momentum": 0.3,
+      "Flow": 0.3,
+      "Liquidity": 0.2,
+      "SmartMoney": 0.2
+    },
+    "final_formula": "S_base = 0.30*Momentum + 0.30*Flow + 0.20*Liquidity + 0.20*SmartMoney; S_final = clamp(S_base - penalties_total, 0, 1)",
+    "normalization_functions": {
+      "linear": "lin(x,a,b)=clamp((x-a)/(b-a),0,1)",
+      "inverse_linear": "inv(x,a,b)=1-lin(x,a,b)",
+      "triangular": "tri(x,a,m,b)=0 if x<=a or x>=b; (x-a)/(m-a) if a<x<m; (b-x)/(b-m) if m<=x<b"
+    },
+    "blocks": {
+      "Momentum": {
+        "weight_inside_final": 0.3,
+        "components": [
+          {
+            "metric": "ret_1m_pct",
+            "weight": 0.35,
+            "transform": {
+              "type": "linear",
+              "a": 4,
+              "b": 12
+            }
+          },
+          {
+            "metric": "ret_5m_pct",
+            "weight": 0.45,
+            "transform": {
+              "type": "triangular",
+              "a": 15,
+              "m": 35,
+              "b": 90
+            }
+          },
+          {
+            "metric": "pullback_from_high_5m_pct",
+            "weight": 0.2,
+            "transform": {
+              "type": "inverse_linear",
+              "a": 0,
+              "b": 28
+            }
+          }
+        ]
+      },
+      "Flow": {
+        "weight_inside_final": 0.3,
+        "components": [
+          {
+            "metric": "volume_equiv_15m_usd",
+            "weight": 0.1,
+            "transform": {
+              "type": "linear",
+              "a": 80000,
+              "b": 350000
+            }
+          },
+          {
+            "metric": "trades_per_min_5m",
+            "weight": 0.2,
+            "transform": {
+              "type": "linear",
+              "a": 18,
+              "b": 45
+            }
+          },
+          {
+            "metric": "unique_buyers_5m",
+            "weight": 0.2,
+            "transform": {
+              "type": "linear",
+              "a": 40,
+              "b": 120
+            }
+          },
+          {
+            "metric": "buyers_to_sellers_5m",
+            "weight": 0.2,
+            "transform": {
+              "type": "linear",
+              "a": 1.6,
+              "b": 3.0
+            }
+          },
+          {
+            "metric": "buy_to_sell_volume_5m",
+            "weight": 0.2,
+            "transform": {
+              "type": "linear",
+              "a": 1.9,
+              "b": 3.5
+            }
+          },
+          {
+            "metric": "median_buy_usd",
+            "weight": 0.1,
+            "transform": {
+              "type": "triangular",
+              "a": 30,
+              "m": 120,
+              "b": 500
+            }
+          }
+        ]
+      },
+      "Liquidity": {
+        "weight_inside_final": 0.2,
+        "components": [
+          {
+            "metric": "liq_usd",
+            "weight": 0.3,
+            "transform": {
+              "type": "linear",
+              "a": 30000,
+              "b": 150000
+            }
+          },
+          {
+            "metric": "liq_to_fdv",
+            "weight": 0.25,
+            "transform": {
+              "type": "linear",
+              "a": 0.08,
+              "b": 0.2
+            }
+          },
+          {
+            "metric": "depth_2pct_usd",
+            "weight": 0.2,
+            "transform": {
+              "type": "linear",
+              "a": 12000,
+              "b": 50000
+            }
+          },
+          {
+            "metric": "price_impact_buy_5000_pct",
+            "weight": 0.1,
+            "transform": {
+              "type": "inverse_linear",
+              "a": 1.5,
+              "b": 4.5
+            }
+          },
+          {
+            "metric": "price_impact_sell_5000_pct",
+            "weight": 0.15,
+            "transform": {
+              "type": "inverse_linear",
+              "a": 2.0,
+              "b": 5.5
+            }
+          }
+        ]
+      },
+      "SmartMoney": {
+        "weight_inside_final": 0.2,
+        "components": [
+          {
+            "metric": "smart_buys_observed_window",
+            "weight": 0.35,
+            "transform": {
+              "type": "linear",
+              "a": 3,
+              "b": 8
+            }
+          },
+          {
+            "metric": "smart_quality_avg",
+            "weight": 0.35,
+            "transform": {
+              "type": "linear",
+              "a": 0.65,
+              "b": 0.85
+            }
+          },
+          {
+            "metric": "smart_cluster_concentration",
+            "weight": 0.15,
+            "transform": {
+              "type": "inverse_linear",
+              "a": 0.15,
+              "b": 0.4
+            }
+          },
+          {
+            "metric": "copy_trade_score",
+            "weight": 0.15,
+            "transform": {
+              "type": "inverse_linear",
+              "a": 0.1,
+              "b": 0.35
+            }
+          }
+        ]
+      }
+    },
+    "candidate_score_threshold": 0.72
+  },
+  "candidate_signal": {
+    "event": "runner_candidate",
+    "required_conditions": [
+      "candidate_prefilters_pass == true",
+      "hard_veto_pass == true",
+      "S_final >= 0.72"
+    ]
+  },
+  "continuation_trigger": {
+    "event": "runner_alert",
+    "required_conditions": [
+      "candidate previously emitted and still within candidate_watch_ttl_min",
+      "pullback_from_local_high_pct in [8, 22]",
+      "current_1m_close > local_high_ref * 1.01",
+      "current_1m_volume_usd >= 1.7 * average(previous_5_completed_1m_volume_usd)",
+      "current_1m_buy_to_sell_volume >= 1.5",
+      "all hard-veto metrics still pass at trigger time",
+      "data freshness <= data_staleness_max_sec"
+    ],
+    "params": {
+      "continuation_pullback_min_pct": 8,
+      "continuation_pullback_max_pct": 22,
+      "continuation_rebreak_above_local_high_pct": 1.0,
+      "continuation_vol_1m_vs_prev5_min": 1.7,
+      "continuation_buy_sell_1m_min": 1.5
+    }
+  },
+  "anti_cabal_anti_sybil": {
+    "penalties": [
+      {
+        "code": "SYBIL_PATTERN",
+        "if_all": [
+          "wallet_age_days_for_buying_wallets <= 3 contributes > 60% of 5m buy volume",
+          "buy_size_cv_5m <= 0.12"
+        ],
+        "delta_score": -0.12
+      },
+      {
+        "code": "SMART_CLUSTER_OVERLAP",
+        "if_all": [
+          "count(smart wallets from same 1-hop funder cluster in effective smart window) >= 3"
+        ],
+        "delta_score": -0.15
+      }
+    ],
+    "immediate_reject": {
+      "code": "COORDINATED_RELATED_SELLING",
+      "if_all": [
+        "related wallets sold within a rolling 2m window",
+        "related_wallet_count >= 3",
+        "combined_sell_usd >= 5000",
+        "combined_sell_usd >= 15% of buy_usd_volume_during_candidate_window"
+      ]
+    },
+    "params": {
+      "sybil_wallet_age_days_max": 3,
+      "sybil_buy_share_5m_min_pct": 60,
+      "sybil_buy_size_cv_5m_max": 0.12,
+      "smart_same_funder_cluster_wallets_min": 3,
+      "related_sell_window_min": 2,
+      "related_sell_cluster_min_wallets": 3,
+      "related_sell_combined_usd_min": 5000,
+      "related_sell_vs_candidate_buy_vol_min_pct": 15
+    }
+  },
+  "state_machine": {
+    "states": [
+      "NEW",
+      "REJECTED",
+      "WATCH_CANDIDATE",
+      "ALERTED",
+      "COOLDOWN",
+      "REARMED"
+    ],
+    "transitions": [
+      "NEW -> REJECTED if hard_veto fails or missing hard-veto data",
+      "NEW -> WATCH_CANDIDATE if candidate_signal conditions pass",
+      "WATCH_CANDIDATE -> ALERTED if continuation_trigger conditions pass",
+      "WATCH_CANDIDATE -> REJECTED if coordinated related selling occurs or hard-veto later fails",
+      "ALERTED -> COOLDOWN immediately after alert emission",
+      "COOLDOWN -> REARMED if new high over last alert >= rearm_new_high_over_last_alert_min_pct and cooldown elapsed",
+      "REARMED -> WATCH_CANDIDATE only if full candidate conditions pass again on fresh data"
+    ],
+    "dedupe_key": "token + selected_primary_pool + ruleset_version"
+  },
+  "event_schema": {
+    "required_fields": [
+      "ts_ms",
+      "slot",
+      "ruleset_version",
+      "event",
+      "token",
+      "symbol",
+      "pool",
+      "score_base",
+      "score_final",
+      "subscores",
+      "penalties",
+      "hard_veto_pass",
+      "failed_veto_rules",
+      "reason_codes",
+      "metrics",
+      "reason"
+    ],
+    "event_values": [
+      "runner_candidate",
+      "runner_alert",
+      "reject"
+    ],
+    "example": {
+      "ts_ms": 0,
+      "slot": 0,
+      "ruleset_version": "sol_meme_runner_v1.1",
+      "event": "runner_alert",
+      "token": "ADDR",
+      "symbol": "XXX",
+      "pool": "POOL_ADDR",
+      "score_base": 0.81,
+      "score_final": 0.78,
+      "subscores": {
+        "momentum": 0.84,
+        "flow": 0.79,
+        "liquidity": 0.73,
+        "smart_money": 0.76
+      },
+      "penalties": [
+        {
+          "code": "SYBIL_PATTERN",
+          "delta": -0.12
+        }
+      ],
+      "hard_veto_pass": true,
+      "failed_veto_rules": [],
+      "reason_codes": [
+        "CONTINUATION_CONFIRMED"
+      ],
+      "metrics": {
+        "ret_1m_pct": 6.2,
+        "ret_5m_pct": 31.4,
+        "buy_to_sell_volume_5m": 2.3,
+        "unique_buyers_5m": 57,
+        "liq_usd": 82000,
+        "liq_to_fdv": 0.11,
+        "smart_quality_avg": 0.71
+      },
+      "reason": "continuation confirmed"
+    }
+  },
+  "default_reason_codes": [
+    "HARD_VETO_DATA_MISSING",
+    "SCORE_METRICS_INCOMPLETE",
+    "MINT_AUTHORITY_NOT_REVOKED",
+    "FREEZE_AUTHORITY_NOT_REVOKED",
+    "LP_LOCK_OR_BURN_TOO_LOW",
+    "CREATOR_SHARE_TOO_HIGH",
+    "TOP10_CONCENTRATION_TOO_HIGH",
+    "INSIDER_CLUSTER_SUPPLY_TOO_HIGH",
+    "SAME_FUNDER_CLUSTER_TOP20_TOO_HIGH",
+    "EARLY_TRADE_CLUSTERING_TOO_HIGH",
+    "SELL_SIM_SUCCESS_TOO_LOW",
+    "SELL_SLIPPAGE_TOO_HIGH",
+    "LIQUIDITY_TOO_LOW",
+    "LIQ_TO_FDV_TOO_LOW",
+    "CANDIDATE_PREFILTER_FAIL",
+    "CANDIDATE_SCORE_PASS",
+    "CONTINUATION_CONFIRMED",
+    "SYBIL_PATTERN",
+    "SMART_CLUSTER_OVERLAP",
+    "COORDINATED_RELATED_SELLING",
+    "COOLDOWN_ACTIVE",
+    "REARM_CONDITION_MET"
+  ],
+  "implementation_notes": [
+    "Hard-veto security fields should come from on-chain mint/token metadata, not only third-party market APIs.",
+    "Holder concentration exclusions must use an allowlist for LP, burn, locker/escrow, treasury and known CEX addresses.",
+    "Sell simulation and price-impact metrics should use one consistent quote engine to avoid metric drift.",
+    "Reject events may be stored internally for all tokens, but user-facing bot delivery should usually suppress raw reject spam.",
+    "Live MVP provider uses Jupiter Tokens V2 audit fields for mint/freeze authority, holder concentration, developer balance and 5m flow stats.",
+    "sell_success_rate_sim_pct is proxied as 100 when a Jupiter sell quote for the configured guard notional exists, else 0.",
+    "effective_sell_slippage_1000_pct and price_impact_* metrics are sourced from Jupiter Quote notional probes.",
+    "unique_buyers_5m, buyers_to_sellers_5m, median_buy_usd and smart-money metrics may be proxied from Jupiter organic-flow fields when GMGN enrichment is unavailable.",
+    "Use the original strict ruleset when a GMGN/cluster enrichment feed is available and mapped into the snapshot schema."
+  ]
+}

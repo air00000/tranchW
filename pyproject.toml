@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sol-runner-alert-bot"
+version = "1.1.0"
+description = "Solana runner alert bot with live MVP provider for DexScreener + Jupiter + optional GMGN enrichment"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "OpenAI"}]
+dependencies = [
+  "aiohttp>=3.9.0",
+  "PyYAML>=6.0.0",
+]
+
+[project.scripts]
+sol-runner-bot = "sol_runner_bot.app:main"
+sol-runner-aggregator = "sol_runner_bot.aggregator:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

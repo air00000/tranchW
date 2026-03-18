@@ -1,0 +1,53 @@
+ruleset_path: ./rules/sol_meme_runner_live_mvp_dex_jup_gmgn.yaml
+
+provider:
+  kind: dex_jup_gmgn_mvp
+  poll_interval_sec: 15
+  timeout_sec: 10
+  chain_id: solana
+  discovery_sources:
+    - watchlist
+    - jupiter_recent
+    - jupiter_toporganicscore_5m
+    - jupiter_toptrending_5m
+    - dex_boosts_top
+  watchlist_tokens: []
+  max_tokens: 25
+  min_liq_usd: 10000
+  min_fdv_usd: 150000
+  jupiter_api_base: https://api.jup.ag
+  jupiter_api_key: ${JUPITER_API_KEY}
+  dexscreener_api_base: https://api.dexscreener.com
+  buy_probe_usd: 5000
+  sell_probe_usd: 5000
+  sell_guard_probe_usd: 1000
+  # Optional: point this to your own GMGN crawler/enrichment service.
+  # Supported shapes:
+  #   GET <url>?tokens=mint1,mint2 -> {"tokens": {"mint1": {...}, ...}}
+  #   or a list of objects with a `token` field.
+  gmgn_enrichment_url: ${GMGN_ENRICHMENT_URL}
+  gmgn_headers:
+    Authorization: Bearer ${GMGN_ENRICHMENT_TOKEN}
+  request_concurrency: 8
+
+telegram:
+  enabled: true
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+  chat_id: ${TELEGRAM_CHAT_ID}
+  parse_mode: HTML
+  disable_notification: true
+
+webhook:
+  enabled: false
+  url: ${ALERT_WEBHOOK_URL}
+  timeout_sec: 10
+  headers:
+    Authorization: Bearer ${ALERT_WEBHOOK_TOKEN}
+
+storage:
+  sqlite_path: ./runtime/state.live_mvp.db
+
+runtime:
+  dispatch_rejects: false
+  dispatch_candidates: true
+  event_log_jsonl: ./runtime/events.live_mvp.jsonl

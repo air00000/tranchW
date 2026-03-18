@@ -1,0 +1,28 @@
+ruleset_path: ./rules/sol_meme_runner_ruleset_v1_1.json
+
+provider:
+  kind: file_replay
+  file_path: ./sample_data/sample_snapshots.jsonl
+
+telegram:
+  enabled: false
+  bot_token: ${TELEGRAM_BOT_TOKEN}
+  chat_id: ${TELEGRAM_CHAT_ID}
+  parse_mode: HTML
+  disable_notification: true
+  # topic_id: 123456
+
+webhook:
+  enabled: false
+  url: ${ALERT_WEBHOOK_URL}
+  timeout_sec: 10
+  headers:
+    Authorization: Bearer ${ALERT_WEBHOOK_TOKEN}
+
+storage:
+  sqlite_path: ./runtime/state.db
+
+runtime:
+  dispatch_rejects: false
+  dispatch_candidates: true
+  event_log_jsonl: ./runtime/events.jsonl
