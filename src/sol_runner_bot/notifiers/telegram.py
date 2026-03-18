@@ -131,8 +131,7 @@ class TelegramNotifier:
         if event.reason_codes:
             reason_text = ", ".join(html.escape(code) for code in event.reason_codes)
             lines.extend(["", f"📝 Reasons: {reason_text}"])
-        return "
-".join(lines)
+        return "\n".join(lines)
 
     def _format_reject(self, event: AlertEvent) -> str:
         lines = [
@@ -144,5 +143,4 @@ class TelegramNotifier:
             lines.append("📝 Reasons: " + ", ".join(html.escape(code) for code in event.reason_codes))
         if event.failed_veto_rules:
             lines.append("🧱 Failed veto: " + ", ".join(html.escape(code) for code in event.failed_veto_rules))
-        return "
-".join(lines)
+        return "\n".join(lines)
